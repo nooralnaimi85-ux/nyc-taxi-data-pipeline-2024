@@ -373,7 +373,33 @@ Press Ctrl+C to stop the dashboard server.
 
 ## 13. Automated Testing
 
-The repository includes automated tests for ingestion and transformation.
+
+## 13. Automated Testing and Verification
+
+The automated test suite was successfully executed on 25 November 2026.
+
+| Verification Metric | Result |
+|---|---|
+| Total automated tests | 6 |
+| Passed tests | 6 |
+| Failed tests | 0 |
+| Success rate | 100% |
+| Execution time | 5.19 seconds |
+| Tested Python version | 3.14.7 |
+| Prefect version | 3.9.4 |
+| Orchestration module import | Successful |
+| Operating system | Windows 64-bit |
+
+All automated ingestion and transformation tests passed successfully.
+
+The Prefect installation and orchestration module import were also verified successfully.
+
+Full workflow execution and recurring scheduling remain separate verification activities.
+
+### Testing Evidence
+
+![Automated Testing Results](docs/automated_testing_results.png)
+
 
 ### Test Coverage
 
