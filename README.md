@@ -398,8 +398,7 @@ Full workflow execution and recurring scheduling remain separate verification ac
 
 ### Testing Evidence
 
-![Automated Testing Results](docs/automated_testing_results.png)
-
+![Automated Testing Results](automated_testing_results.png)
 
 ### Test Coverage
 
