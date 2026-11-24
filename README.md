@@ -1,235 +1,583 @@
+
 # Designing an End-to-End Data Pipeline for NYC Taxi Trip Data Analytics
 
-**DSAI5102 — Data Architecture & Engineering**  
-**Dataset:** NYC Taxi & Limousine Commission (TLC) Yellow Taxi trip records, **January–December 2024**  
-**Platform:** Windows 10/11, Python 3.12, DuckDB, Prefect, Streamlit
+**Course:** DSAI5102 — Data Architecture & Engineering  
+**Dataset:** NYC Taxi & Limousine Commission (TLC) Yellow Taxi Trip Records  
+**Period:** January–December 2024  
+**Platform:** Windows 10/11, Python 3.12  
+**Technologies:** Python, Parquet, DuckDB, SQL, Prefect and Streamlit
 
-## 1. Project overview
+---
 
-This project demonstrates a reproducible local batch data pipeline:
+## 1. Project Overview
 
-**NYC TLC monthly Parquet files → `data/raw/` → DuckDB `staging_trips` → cleaned `fact_trips` → four analytical summary views → CSV exports + Streamlit dashboard.**
+This project demonstrates the design and implementation of an end-to-end batch data pipeline for NYC Yellow Taxi trip records.
 
-A Prefect flow provides optional orchestration. Running the Prefect flow manually **does not** establish that an unattended schedule has been deployed.
+The pipeline collects, stores, cleans, transforms and analyzes taxi trip data to provide meaningful insights into transportation patterns throughout 2024.
 
-## 2. Folder structure
+The project was initially developed using January 2024 as a pilot dataset to validate the architecture, troubleshoot implementation issues and test the transformation logic before expanding to the full calendar year.
+
+### Project Objectives
+
+- Automate the ingestion of monthly taxi trip records.
+- Maintain raw data in its original Parquet format.
+- Implement data cleaning and validation rules.
+- Build an analytical warehouse using DuckDB.
+- Implement workflow orchestration using Prefect.
+- Develop an interactive Streamlit dashboard.
+- Ensure reproducibility through documentation and automated tests.
+
+---
+
+## 2. System Architecture
+
+```mermaid
+flowchart TD
+    A[NYC TLC Data Source] --> B[Python Data Ingestion]
+    B --> C[Raw Parquet Storage]
+    C --> D[DuckDB Staging Table]
+    D --> E[SQL Cleaning and Transformation]
+    E --> F[Curated Fact Table]
+    F --> G[Analytical Summary Views]
+    F --> H[Pipeline Audit]
+    G --> I[CSV Exports]
+    G --> J[Streamlit Dashboard]
+    K[Prefect Orchestration] -.-> B
+    K -.-> E
+```
+
+The pipeline follows a batch-processing architecture that separates raw data ingestion, staging, transformation, analytical storage and visualization.
+
+---
+
+## 3. Technology Stack
+
+| Technology | Purpose |
+|---|---|
+| Python | Pipeline implementation and automation |
+| Parquet | Efficient columnar data storage |
+| DuckDB | Analytical database and warehouse |
+| SQL | Data cleaning, transformation and aggregation |
+| Prefect | Workflow orchestration and retry management |
+| Streamlit | Interactive analytical dashboard |
+| Pandas | Data manipulation and dashboard integration |
+| Pytest | Automated testing |
+| GitHub | Version control and project documentation |
+
+---
+
+## 4. Repository Structure
 
 ```text
-nyc-taxi-data-pipeline/
-├── README.md                    # This guide
-├── requirements.txt             # Python dependencies
-├── dashboard.py                 # Streamlit dashboard
+nyc-taxi-data-pipeline-2024/
+├── README.md
+├── requirements.txt
+├── dashboard.py
+├── verify.py
+├── .gitignore
+├── report.pdf
+├── presentation.pptx
+│
 ├── src/
-│   ├── pipeline.py              # Main pipeline (all 2024 months by default)
-│   ├── ingestion.py             # Downloads monthly NYC TLC Parquet files
-│   ├── transform.py             # Cleaning, DuckDB tables/views, CSV exports
-│   ├── orchestration.py         # Optional Prefect flow
-│   └── config.py                # File paths
-├── tests/                       # Automated tests
-├── docs/                        # Methodology, plan and troubleshooting
-├── data/raw/                    # Downloaded files (created/populated at runtime)
-├── data/taxi.duckdb             # Generated DuckDB database
-└── outputs/                     # Generated summary CSVs
+│   ├── __init__.py
+│   ├── config.py
+│   ├── ingestion.py
+│   ├── transform.py
+│   ├── pipeline.py
+│   └── orchestration.py
+│
+├── tests/
+│   ├── test_ingestion.py
+│   └── test_transform.py
+│
+├── sql/
+│   └── verify.sql
+│
+└── docs/
+    ├── ARCHITECTURE.md
+    └── COMPLIANCE.md
 ```
 
-## 3. First-time setup on Windows (PowerShell)
+The following directories and files are generated automatically when the pipeline runs:
 
-**Important: do not run these commands from `C:\WINDOWS\system32`.** Extract the ZIP first, then open PowerShell **inside the inner `nyc-taxi-data-pipeline` folder** that contains `requirements.txt`, `dashboard.py`, and `src`.
+```text
+data/
+├── raw/
+├── processed/
+└── taxi.duckdb
 
-For example, with the revised ZIP extracted in Downloads:
+outputs/
+├── monthly_summary.csv
+├── hourly_summary.csv
+├── payment_summary.csv
+└── location_summary.csv
+```
+
+Raw datasets, virtual environments and generated database files are excluded from version control.
+
+---
+
+## 5. Dataset Description
+
+The project uses publicly available NYC Yellow Taxi trip records published by the NYC Taxi & Limousine Commission.
+
+The dataset covers all 12 months of 2024.
+
+### Main Source Attributes
+
+| Attribute | Description |
+|---|---|
+| tpep_pickup_datetime | Trip pickup timestamp |
+| tpep_dropoff_datetime | Trip drop-off timestamp |
+| trip_distance | Recorded trip distance in miles |
+| total_amount | Recorded total trip amount |
+| payment_type | Payment method code |
+| PULocationID | Pickup location identifier |
+
+Additional analytical attributes are derived during transformation, including:
+
+- Trip month
+- Pickup hour
+- Trip duration in minutes
+
+### Official Data Source
+
+https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
+
+---
+
+## 6. Installation and Setup
+
+### Prerequisites
+
+- Python 3.12
+- Internet connection
+- Sufficient disk space for the full-year dataset
+- Git, if cloning the repository
+
+### Step 1 — Clone the Repository
+
+Open PowerShell and run:
 
 ```powershell
-cd "C:\Users\60328122\Downloads\nyc-taxi-data-pipeline-2024-revised\nyc-taxi-data-pipeline"
+cd $HOME\Downloads
+
+git clone https://github.com/nooralnaimi85-ux/nyc-taxi-data-pipeline-2024.git
+
+cd nyc-taxi-data-pipeline-2024
 ```
 
-If you extracted it elsewhere, replace the path with your own. Confirm the folder:
+Alternatively, download the repository using:
+
+**Code → Download ZIP**
+
+Extract the ZIP and open PowerShell inside the extracted project folder.
+
+### Step 2 — Create a Virtual Environment
 
 ```powershell
-Get-Location
-Get-ChildItem
+python -m venv .venv
 ```
 
-You should see `requirements.txt`, `dashboard.py`, and `src`.
-
-### A. Create a virtual environment
-
-If Python 3.12 is installed at the path below:
-
-```powershell
-& "C:\Program Files\Python312\python.exe" -m venv .venv
-```
-
-If you already created `.venv` in the **outer** `nyc-taxi-data-pipeline-2024-revised` folder, you can reuse it instead of creating another one. Set its Python path with:
-
-```powershell
-$python = "C:\Users\60328122\Downloads\nyc-taxi-data-pipeline-2024-revised\.venv\Scripts\python.exe"
-```
-
-Otherwise, if you created `.venv` in the **inner project folder**, set:
+Set the Python executable:
 
 ```powershell
 $python = ".\.venv\Scripts\python.exe"
 ```
 
-Use **one** of those `$python` assignments for the rest of this session.
-
-### B. Install dependencies (first time only)
+### Step 3 — Install Dependencies
 
 ```powershell
+& $python -m pip install --upgrade pip
 & $python -m pip install -r requirements.txt
 ```
 
-A notice that a newer version of pip is available is not an error. Wait for installation to complete.
+Confirm that the current directory contains:
 
-## 4. Run the data pipeline
+```text
+requirements.txt
+dashboard.py
+src/
+tests/
+```
 
-### Option A — Full year 2024 (recommended for final submission)
+Do not execute the setup commands from the Windows system32 directory.
+
+---
+
+## 7. Running the Data Pipeline
+
+### Option A — Full-Year 2024 Processing
 
 ```powershell
 & $python -m src.pipeline
 ```
 
-This downloads and processes **all 12 months (2024-01 through 2024-12)**. The first run may take considerable time and disk space. A successful run prints a Python dictionary containing `raw_rows`, `clean_rows`, `excluded_or_deduplicated_rows`, `months`, and `database`.
+This command downloads and processes all 12 monthly datasets from January to December 2024.
 
-### Option B — January 2024 pilot (faster testing)
+The first execution may require considerable processing time and disk space.
+
+### Option B — January Pilot
 
 ```powershell
 & $python -m src.pipeline --months 2024-01
 ```
 
-**Warning:** This replaces the analytical results with January-only results. To restore the full-year dashboard, rerun Option A afterward.
+This option is useful for development, troubleshooting and initial validation.
 
-### Option C — Selected months
+### Option C — Selected Months
 
 ```powershell
 & $python -m src.pipeline --months 2024-01 2024-02 2024-03
 ```
 
-Only the months selected in the command will be represented in the resulting database and dashboard.
+Processing selected months replaces the existing analytical results with the selected period.
 
-## 5. Open the interactive dashboard
+To restore the full-year results, rerun Option A.
 
-From the same inner project folder, run:
+---
 
-```powershell
-& $python -m streamlit run dashboard.py
+## 8. Data Cleaning and Transformation
+
+The transformation process applies the following project-specific validation rules:
+
+| Quality Rule | Validation Criteria |
+|---|---|
+| Missing timestamps | Pickup and drop-off timestamps must be present |
+| Timestamp consistency | Drop-off must occur after pickup |
+| Trip duration | Greater than 0 and no more than 360 minutes |
+| Trip distance | Greater than 0 and no more than 200 miles |
+| Total amount | Between USD 0 and USD 10,000 |
+| Date validation | Pickup month must belong to the selected 2024 period |
+| Duplicate records | Duplicate analytical fact records are removed using DISTINCT |
+
+The pipeline creates or replaces the analytical tables during execution rather than appending duplicate records.
+
+This supports repeatable batch processing and prevents duplication caused by rerunning the pipeline.
+
+The exclusion count combines filtering and deduplication and does not represent a separate count for each quality rule.
+
+---
+
+## 9. Analytical Warehouse
+
+DuckDB is used as the local analytical warehouse.
+
+### Main Database Objects
+
+| Database Object | Purpose |
+|---|---|
+| staging_trips | Stores ingested source records |
+| fact_trips | Stores cleaned analytical trip records |
+| pipeline_audit | Stores processing statistics |
+| monthly_summary | Monthly trip counts and averages |
+| hourly_summary | Trip distribution by pickup hour |
+| payment_summary | Trip distribution by payment type |
+| location_summary | Top 15 pickup location IDs |
+
+The database is generated at:
+
+```text
+data/taxi.duckdb
 ```
 
-Streamlit normally opens your browser automatically. If not, open **http://localhost:8501**. Keep the PowerShell window running while using the dashboard; press **Ctrl+C** to stop the server.
+The analytical views support dashboard visualization and CSV exports.
 
-The dashboard displays:
+---
 
-1. Monthly trip volume (12 bars for a full-year run)
-2. Trips by pickup hour
-3. Trips by payment type (**numeric source codes**, not decoded labels)
-4. Top 15 pickup location IDs (**numeric source codes**)
+## 10. Full-Year Processing Results
 
-If you see fewer than 12 months, rerun the full-year pipeline (Section 4, Option A).
+The recorded full-year pipeline execution produced the following results:
 
-## 6. Run automated tests
+| Metric | Result |
+|---|---:|
+| Dataset period | January–December 2024 |
+| Months processed | 12 |
+| Raw records | 41,169,720 |
+| Retained analytical records | 39,809,562 |
+| Excluded or deduplicated records | 1,360,158 |
+| Data retention rate | 96.70% |
+| Exclusion rate | 3.30% |
 
-Open another PowerShell window in the **inner project folder**, set `$python` again using the appropriate command in Section 3, then run:
+These figures are based on the recorded full-year execution output.
 
-```powershell
-& $python -m pytest -q
+The reconciliation is:
+
+```text
+41,169,720 - 39,809,562 = 1,360,158
 ```
 
-Capture the actual test output for the report or presentation. Do not claim tests passed unless the command confirms this.
+Independent warehouse verification can be performed using the provided verification script.
 
-## 7. Run the optional Prefect workflow
+---
 
-From the inner project folder:
+## 11. Workflow Orchestration
+
+Prefect is used to define the batch workflow and manage task dependencies.
+
+The workflow includes:
+
+1. Downloading the selected monthly datasets.
+2. Managing ingestion tasks and retry attempts.
+3. Building the analytical warehouse.
+4. Applying data cleaning and transformation rules.
+5. Generating analytical summaries and CSV exports.
+
+Run the Prefect workflow using:
 
 ```powershell
 & $python -m src.orchestration
 ```
 
-This invokes the Prefect flow for all 12 months. It is an **on-demand run**, not proof of a deployed recurring schedule. Capture Prefect logs if your instructor requires orchestration evidence.
+The ingestion task supports up to three retries with a delay of 15 seconds between attempts.
 
-## 8. Check the generated results
+The provided workflow supports on-demand execution. A recurring production schedule has not been independently verified.
 
-After a successful full-year pipeline run, look for:
+---
 
-```text
-data/taxi.duckdb
-outputs/monthly_summary.csv
-outputs/hourly_summary.csv
-outputs/payment_summary.csv
-outputs/location_summary.csv
+## 12. Interactive Dashboard
+
+The Streamlit dashboard provides interactive visualization of the analytical warehouse.
+
+### Dashboard Components
+
+| Visualization | Purpose |
+|---|---|
+| Retained trips KPI | Displays the number of curated trip records |
+| Monthly trip volume | Compares trip counts across months |
+| Hourly pickup pattern | Identifies variation in trips by pickup hour |
+| Payment distribution | Compares recorded payment type codes |
+| Top 15 pickup locations | Identifies the most frequently recorded pickup location IDs |
+
+### Launch the Dashboard
+
+```powershell
+& $python -m streamlit run dashboard.py
 ```
 
-To inspect the monthly CSV in PowerShell:
+Open the following address if the browser does not launch automatically:
+
+```text
+http://localhost:8501
+```
+
+The dashboard reads the analytical views directly from DuckDB.
+
+Payment methods and pickup locations are displayed using their original numeric source codes.
+
+Keep the PowerShell window running while using the dashboard.
+
+Press Ctrl+C to stop the dashboard server.
+
+---
+
+## 13. Automated Testing
+
+The repository includes automated tests for ingestion and transformation.
+
+### Test Coverage
+
+- Invalid month format validation
+- Invalid month number validation
+- January-specific filtering
+- Exclusion of records outside the selected period
+- Rejection of non-2024 processing periods
+- Repeatable processing without duplicate accumulation
+
+Run the tests using:
+
+```powershell
+& $python -m pytest -q
+```
+
+The current test suite defines six test cases, including parameterized ingestion tests.
+
+The actual pass or fail results should be confirmed by executing the test suite in the configured Python environment.
+
+---
+
+## 14. Warehouse Verification
+
+After completing the full-year pipeline, run:
+
+```powershell
+& $python verify.py
+```
+
+The verification script checks:
+
+- Raw record count against the staging table.
+- Curated record count against the fact table.
+- Reconciliation of raw, curated and excluded records.
+- Availability of all 12 months.
+- Monthly summary totals against the curated fact table.
+- Hourly and payment summary totals against the curated fact table.
+
+Additional SQL verification queries are available in:
+
+```text
+sql/verify.sql
+```
+
+### Inspect Monthly Results
 
 ```powershell
 Import-Csv .\outputs\monthly_summary.csv | Format-Table
 ```
 
-To confirm all 12 months appear:
+### Verify the Number of Months
 
 ```powershell
 (Import-Csv .\outputs\monthly_summary.csv).Count
 ```
 
-The count should be **12** for a complete full-year run with valid data in each month.
+A successful full-year run with retained records in every month should return:
 
-**Important data check:** `raw_rows - clean_rows` must equal `excluded_or_deduplicated_rows` because the current code calculates the last metric as that difference. If your displayed output does not reconcile, rerun the command and save the complete text output before using those figures in the report.
-
-## 9. Cleaning rules and interpretation
-
-The pipeline retains trips with pickup months explicitly selected from 2024, and applies these project-specific checks:
-
-- Pickup and drop-off timestamps must be present; drop-off must be later than pickup.
-- Duration must be greater than 0 and at most 360 minutes.
-- Trip distance must be greater than 0 and at most 200 miles.
-- Total amount must be between $0 and $10,000, inclusive.
-- Exact duplicate fact records are removed using `DISTINCT`.
-
-`total_amount` is the recorded total amount, **not necessarily the base fare**. The audit metric combines all exclusions and deduplication; it does not show a per-rule breakdown. Payment and location codes are not mapped to descriptive names.
-
-## 10. Common problems
-
-| Message / symptom | What to do |
-|---|---|
-| `requirements.txt` not found | You are likely in the outer extracted folder. Enter the **inner** `nyc-taxi-data-pipeline` folder. |
-| `Access is denied: C:\WINDOWS\system32\.venv` | Move out of `system32` and into the project folder before creating `.venv`. |
-| `\.venv\Scripts\python.exe is not recognized` | Create the environment first or use the `$python` variable pointing to your existing outer-folder environment. |
-| `No module named ...` | Run `& $python -m pip install -r requirements.txt` from the inner project folder. |
-| Streamlit says database not found | Run `& $python -m src.pipeline` successfully before opening the dashboard. |
-| Only one month in the dashboard | Rerun the pipeline **without** `--months`. |
-| Dashboard port 8501 already in use | Stop the other Streamlit instance with Ctrl+C, or use `--server.port 8502`. |
-| PowerShell command stopped with Ctrl+C | Run it again and wait for the printed summary or any error. |
-
-## 11. Submission checklist
-
-- [ ] Full 2024 pipeline completes without errors.
-- [ ] Monthly CSV has 12 months and the dashboard displays 12 monthly bars.
-- [ ] All four dashboard charts are captured in screenshots.
-- [ ] Automated tests run and their real output is recorded.
-- [ ] Prefect on-demand execution is demonstrated; do not describe it as scheduled unless deployed.
-- [ ] Report numbers and conclusions match the generated 2024 CSVs.
-- [ ] Report is 5–10 pages (PDF) and includes dataset, architecture, implementation, results, limitations, and conclusion.
-- [ ] Presentation supports approximately 15 minutes plus 5 minutes Q&A.
-- [ ] Repository includes source code, requirements, README, tests and documentation; excludes `.venv`, raw data and generated database.
-
-## 12. Data source
-
-Official NYC TLC Trip Record Data: https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
-
-Use the original project title consistently in the report and presentation. The project uses public records for academic analysis and does not claim to represent every NYC taxi trip without the documented filters.
-
-## 13. Final submission and verification
-
-The report and presentation are in `docs/`. Run `& $python verify.py` against the completed annual database; `sql/verify.sql` contains equivalent inspection queries. See `docs/COMPLIANCE.md` for evidence limits and `docs/ARCHITECTURE.md` for the architecture diagram.
-
-To publish, create an empty private GitHub repository named `nyc-taxi-data-pipeline-2024`, then from the project root run:
-
-```powershell
-git init
-git add .
-git commit -m "Final NYC taxi data pipeline project"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/nyc-taxi-data-pipeline-2024.git
-git push -u origin main
+```text
+12
 ```
 
-Replace YOUR-USERNAME with your actual GitHub username. Grant instructor access if private. Submit the repository URL with the corrected PDF and existing PowerPoint. Review `git status` before pushing; do not include credentials or large generated data. The report and slides contain student names/IDs, so keep the repository private unless authorized to publish them.
+---
+
+## 15. Generated Outputs
+
+The pipeline produces the following analytical CSV files:
+
+| Output File | Description |
+|---|---|
+| monthly_summary.csv | Monthly trip volume, average total amount and average distance |
+| hourly_summary.csv | Trip counts by pickup hour |
+| payment_summary.csv | Trip counts by payment type |
+| location_summary.csv | Top 15 pickup location IDs by trip count |
+
+These files are generated locally in the outputs directory.
+
+The generated database and CSV files are not included in the GitHub repository. They can be reproduced by running the pipeline.
+
+---
+
+## 16. Troubleshooting
+
+| Issue | Recommended Solution |
+|---|---|
+| Python command not recognized | Install Python 3.12 and configure the system PATH |
+| requirements.txt not found | Open PowerShell inside the project root directory |
+| ModuleNotFoundError | Install dependencies using requirements.txt |
+| Virtual environment access denied | Move the project outside restricted system directories |
+| Database not found | Run the pipeline before launching the dashboard |
+| Dashboard displays only January | Run the pipeline without the --months argument |
+| Streamlit port already in use | Stop the existing Streamlit process or use another port |
+| Incomplete download | Retry the pipeline or use the Prefect workflow |
+| Insufficient disk space | Free disk space or use the January pilot for testing |
+
+To use an alternative Streamlit port:
+
+```powershell
+& $python -m streamlit run dashboard.py --server.port 8502
+```
+
+---
+
+## 17. Limitations and Future Improvements
+
+### Current Limitations
+
+- The pipeline operates in batch mode rather than real time.
+- Processing the full-year dataset requires sufficient local storage.
+- Payment and location codes are not mapped to descriptive labels.
+- The data quality audit does not provide individual exclusion counts for every cleaning rule.
+- A recurring Prefect production schedule has not been verified.
+- Full-year dashboard CSV outputs and current automated test results require additional verification.
+
+### Future Improvements
+
+- Implement incremental monthly processing.
+- Configure automated Prefect scheduling.
+- Integrate taxi zone lookup data.
+- Map payment codes to descriptive labels.
+- Add detailed data quality monitoring.
+- Introduce geographic visualizations.
+- Implement continuous integration for automated testing.
+- Explore cloud-based deployment.
+
+---
+
+## 18. Project Deliverables
+
+| Deliverable | Location |
+|---|---|
+| Technical Report | [report.pdf](report.pdf) |
+| Project Presentation | [presentation.pptx](presentation.pptx) |
+| Source Code | [src/](src/) |
+| Automated Tests | [tests/](tests/) |
+| Architecture Documentation | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Compliance Documentation | [COMPLIANCE.md](docs/COMPLIANCE.md) |
+| SQL Verification | [verify.sql](sql/verify.sql) |
+| Interactive Dashboard | [dashboard.py](dashboard.py) |
+| Python Dependencies | [requirements.txt](requirements.txt) |
+
+---
+
+## 19. Reproducibility
+
+The project is designed to be reproducible using the following execution sequence:
+
+```powershell
+python -m venv .venv
+
+$python = ".\.venv\Scripts\python.exe"
+
+& $python -m pip install -r requirements.txt
+
+& $python -m pytest -q
+
+& $python -m src.pipeline
+
+& $python verify.py
+
+& $python -m streamlit run dashboard.py
+```
+
+The optional Prefect workflow can be executed using:
+
+```powershell
+& $python -m src.orchestration
+```
+
+All required source code, configuration files and dependency specifications are provided in this repository.
+
+---
+
+## 20. Conclusion
+
+This project demonstrates an end-to-end data engineering solution that transforms raw NYC Yellow Taxi trip records into structured analytical information.
+
+The implementation integrates data ingestion, raw storage, data quality validation, SQL transformation, analytical warehousing, workflow orchestration and interactive visualization.
+
+The recorded full-year execution processed more than 41 million source records and retained approximately 39.8 million analytical records.
+
+The resulting architecture provides a reproducible foundation for transportation data analysis and future data engineering enhancements.
+
+---
+
+## Repository Information
+
+**Project:** Designing an End-to-End Data Pipeline for NYC Taxi Trip Data Analytics
+
+**Course:** DSAI5102 — Data Architecture & Engineering
+
+**Institution:** University of Doha for Science and Technology (UDST)
+
+**Academic Year:** 2026–2027
+
+**Repository:**
+
+https://github.com/nooralnaimi85-ux/nyc-taxi-data-pipeline-2024
+
+---
+
+## Acknowledgments
+
+NYC Taxi & Limousine Commission (TLC) for providing publicly available taxi trip records.
+
+This project was developed for academic purposes as part of the DSAI5102 Data Architecture & Engineering course.
